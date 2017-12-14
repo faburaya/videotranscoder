@@ -1,40 +1,23 @@
-========================================================================
-    CONSOLE APPLICATION : VideoTranscoder Project Overview
-========================================================================
+This C++ console application makes use of Microsoft Media Foundation to transcode video (with any number of streams and any format supported by Windows). Hardware acceleration is enabled whenever possible. Encoding to H.264 is very fast!
 
-AppWizard has created this VideoTranscoder application for you.
+The solution is meant to be build by Visual C++ 2015 and depends on 3FD v2.4+ (https://github.com/faburaya/3fd) installed in a location defined by an enviroment variable to be called "_3FD_HOME".
 
-This file contains a summary of what you will find in each of the files that
-make up your VideoTranscoder application.
+Windows 10 (at least build 14393) is recommended.
 
+Usage:
 
-VideoTranscoder.vcxproj
-    This is the main project file for VC++ projects generated using an Application Wizard.
-    It contains information about the version of Visual C++ that generated the file, and
-    information about the platforms, configurations, and project features selected with the
-    Application Wizard.
+ VideoTranscoder [/e:encoder] [/t:target_size_factor] input output
 
-VideoTranscoder.vcxproj.filters
-    This is the filters file for VC++ projects generated using an Application Wizard. 
-    It contains information about the association between the files in your project 
-    and the filters. This association is used in the IDE to show grouping of files with
-    similar extensions under a specific node (for e.g. ".cpp" files are associated with the
-    "Source Files" filter).
+            encoder = h264 (default)
+ target size factor = 0.5 (default)
+Must provide input & output files!
 
-VideoTranscoder.cpp
-    This is the main application source file.
+      /e:, /encoder:   What encoder to use, always with the highest profile
+                       made available by Microsoft Media Foundation, for better
+                       compression - allowed: [(default = )h264, hevc]
 
-/////////////////////////////////////////////////////////////////////////////
-Other standard files:
+          /t:, /tsf:   The target size of the output transcoded video, as a
+                       fraction of the original size (when ommited, default =
+                       0.5; min = 0.001; max = 1)
 
-StdAfx.h, StdAfx.cpp
-    These files are used to build a precompiled header (PCH) file
-    named VideoTranscoder.pch and a precompiled types file named StdAfx.obj.
-
-/////////////////////////////////////////////////////////////////////////////
-Other notes:
-
-AppWizard uses "TODO:" comments to indicate parts of the source code you
-should add to or customize.
-
-/////////////////////////////////////////////////////////////////////////////
+        input output   input & output files (expects 2 values)
