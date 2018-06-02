@@ -7,6 +7,7 @@
 #include <iostream>
 #include <algorithm>
 #include <codecvt>
+#include <array>
 
 #include <mfapi.h>
 #include <Mferror.h>
@@ -138,12 +139,15 @@ namespace application
         // Find a lower data rate for the audio stream:
 
         UINT32 avgBytesPerSec(0UL);
-        const UINT32 enumBpsVals[] = { 24000, 20000, 16000, 12000 };
-        const auto endEnumBpsVals = enumBpsVals + (sizeof enumBpsVals) / sizeof(UINT32);
-        auto iterEnumBps = std::upper_bound(enumBpsVals, endEnumBpsVals, baseAudio.originalEncodedDataRate);
+        const std::array<UINT32, 4> enumBpsVals = { 12000, 16000, 20000, 24000 };
+        auto iterEnumBps = std::lower_bound(enumBpsVals.begin(),
+                                            enumBpsVals.end(),
+                                            baseAudio.originalEncodedDataRate);
 
-        if (iterEnumBps != endEnumBpsVals)
-            avgBytesPerSec = *iterEnumBps;
+        if (iterEnumBps != enumBpsVals.begin())
+            --iterEnumBps;
+
+        avgBytesPerSec = *iterEnumBps;
 
         // Create the audio output media type:
         ComPtr<IMFMediaType> outputAudioMType;
@@ -247,12 +251,12 @@ namespace application
     /// capable of retrieving the selected media transform for each stream.</param>
     /// <param name="idxDecStream">The index of the stream in source.</param>
     /// <param name="decoded">Describes the decoded stream to add.</param>
-    /// <param name="targeSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
     /// <param name="encoder">What encoder to use for video.</param>
     void MFSinkWriter::AddStream(const ComPtr<IMFSinkWriterEx> &sinkWriterAltIntf,
                                  DWORD idxDecStream,
                                  const DecodedMediaType &decoded,
-                                 double targeSizeFactor,
+                                 double targetSizeFactor,
                                  Encoder encoder)
     {
         CALL_STACK_TRACE;
@@ -273,7 +277,7 @@ namespace application
         if (majorType == MFMediaType_Video) // video? will encode
         {
             mediaDataType = Video;
-            outputMType = CreateOutVideoMediaType(decoded, targeSizeFactor, encoder);
+            outputMType = CreateOutVideoMediaType(decoded, targetSizeFactor, encoder);
         }
         else if (majorType == MFMediaType_Audio) // audio? will encode
         {
@@ -314,7 +318,11 @@ namespace application
                     "IMFSinkWriter::GetServiceForStream");
             }
 
-            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant((UINT32)75))) ||
+            // the smaller the output has to be, the greater is the encoding complexity to maintain quality:
+            _ASSERTE(targetSizeFactor > 0.0F && targetSizeFactor <= 1.0F);
+            auto complexity = static_cast<UINT32> (67 + (1.0F - targetSizeFactor * 0.8F) * 33);
+
+            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(complexity))) ||
                 FAILED(hr = codec->SetValue(&CODECAPI_AVEncAdaptiveMode, &CComVariant((ULONG)eAVEncAdaptiveMode_FrameRate))))
             {
                 WWAPI::RaiseHResultException(hr, "Failed to set property for H.264 encoder", "ICodecAPI::SetValue");
@@ -387,11 +395,13 @@ namespace application
     /// <param name="decodedMTypes">A dictionary of (decoded input) media types indexed by stream index.</param>
     /// <param name="targeSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
     /// <param name="encoder">What encoder to use for video.</param>
+    /// <param name="useHwAcceleration">Whether hardware acceleration must be used.</param>
     MFSinkWriter::MFSinkWriter(const string &url,
                                const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan,
                                const std::map<DWORD, DecodedMediaType> &decodedMTypes,
                                double targeSizeFactor,
-                               Encoder encoder)
+                               Encoder encoder,
+                               bool useHwAcceleration)
     try
     {
         CALL_STACK_TRACE;
@@ -402,11 +412,14 @@ namespace application
         if (FAILED(hr))
             WWAPI::RaiseHResultException(hr, "Failed to create attributes store", "MFCreateAttributes");
 
-        // enable DXVA encoding
-        sinkWriterAttrStore->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, mfDXGIDevMan.Get());
+        if (useHwAcceleration)
+        {
+            // enable DXVA encoding
+            sinkWriterAttrStore->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, mfDXGIDevMan.Get());
 
-        // enable codec hardware acceleration
-        sinkWriterAttrStore->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
+            // enable codec hardware acceleration
+            sinkWriterAttrStore->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
+        }
 
         std::wstring_convert<std::codecvt_utf8<wchar_t>> transcoder;
         auto ucs2url = transcoder.from_bytes(url);

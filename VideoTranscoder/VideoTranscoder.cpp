@@ -198,20 +198,21 @@ int main(int argc, const char *argv[])
             return EXIT_SUCCESS;
         }
 
+        auto duration = sourceReader.GetDuration();
+        std::cout << "\nInput media file is " << duration_cast<seconds>(duration).count() << " seconds long\n";
+
         // Prepare media sink and select encoders
         application::MFSinkWriter sinkWriter(params.outputFName,
                                              mfDXGIDevMan,
                                              srcReadDecStreams,
                                              params.tgtSizeFactor,
-                                             params.encoder);
-
-        auto duration = sourceReader.GetDuration();
-        std::cout << "\nInput media file is " << duration_cast<seconds>(duration).count() << " seconds long\n";
+                                             params.encoder,
+                                             true);
 
         std::array<char, 21> timestamp;
         auto now = system_clock::to_time_t(system_clock::now());
         strftime(timestamp.data(), timestamp.size(), "%Y-%b-%d %H:%M:%S", localtime(&now));
-        std::cout << "Transcoding starting at " << timestamp.data() << '\n' << std::endl;
+        std::cout << "\nTranscoding starting at " << timestamp.data() << '\n' << std::endl;
 
         application::PrintProgressBar(0.0);
 
@@ -246,8 +247,8 @@ int main(int argc, const char *argv[])
                 }
 
                 sinkWriter.EncodeSample(idxStream, sample);
-            }
-            while ((state & static_cast<DWORD> (application::ReadStateFlags::EndOfStream)) == 0);
+
+            } while ((state & static_cast<DWORD> (application::ReadStateFlags::EndOfStream)) == 0);
         }
         catch (HResultException &ex)
         {
@@ -255,7 +256,7 @@ int main(int argc, const char *argv[])
             if (ex.GetErrorCode() == DXGI_ERROR_DEVICE_REMOVED)
             {
                 std::ostringstream oss;
-                oss << "There a failure related to the GPU device: "
+                oss << "There is a failure related to the GPU device: "
                     << WWAPI::GetDetailsFromHResult(d3dDevice->GetDeviceRemovedReason());
 
                 Logger::Write(oss.str(), Logger::PRIO_FATAL);

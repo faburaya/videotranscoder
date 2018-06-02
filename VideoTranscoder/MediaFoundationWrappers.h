@@ -123,7 +123,8 @@ namespace application
                      const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan,
                      const std::map<DWORD, DecodedMediaType> &decodedMTypes,
                      double targeSizeFactor,
-                     Encoder encoder);
+                     Encoder encoder,
+                     bool useHwAcceleration);
 
         ~MFSinkWriter();
 
