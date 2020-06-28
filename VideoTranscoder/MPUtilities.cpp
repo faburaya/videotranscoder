@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
-#include <3FD\callstacktracer.h>
-#include <3FD\exceptions.h>
-#include <3FD\logger.h>
+#include <3fd\core\callstacktracer.h>
+#include <3fd\core\exceptions.h>
+#include <3fd\core\logger.h>
 #include <iostream>
 #include <algorithm>
 #include <codecvt>
 #include <mfapi.h>
+
+#undef min
+#undef max
 
 namespace application
 {
@@ -195,6 +198,46 @@ namespace application
         );
 
         return (mftCatLblIter != mftCatLblEnd ? mftCatLblIter->value : "unknown");
+    }
+
+    /// <summary>
+    /// Estimates a value for the "quality vs speed" configurable parameter of the H.264
+    /// encoder so as to maintain good quality, based on empiric data from real videos.
+    /// </summary>
+    /// <param name="decoded">Describes the decoded stream to add.</param>
+    /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <returns>An integer value from 1 to 100 for the "quality vs speed" parameter.</returns>
+    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, float targetSizeFactor)
+    {
+        UINT32  videoWidth;
+        UINT32  videoHeigth;
+        HRESULT hr;
+
+        // From base media type, get some main attributes:
+        if (FAILED(hr = MFGetAttributeSize(decoded.mediaType.Get(),
+                                           MF_MT_FRAME_SIZE,
+                                           &videoWidth,
+                                           &videoHeigth)))
+        {
+            WWAPI::RaiseHResultException(hr,
+                "Failed to get frame size of decoded video",
+                "IMFMediaType::GetUINT32");
+        }
+
+        // calculate Bps/pixel:
+        auto rpp = static_cast<float> (decoded.originalEncodedDataRate / 8) / (videoWidth * videoHeigth);
+
+        /* The smaller the output has to be, the greater is the encoding complexity to maintain quality.
+           Moreover, take into consideration that when the input is already efficiently encoded (empiric
+           data points to Bps/pixel around 0.5), the complexity is from start expected to be high: */
+        _ASSERTE(targetSizeFactor > 0.0F && targetSizeFactor <= 1.0F);
+        if (rpp > 0)
+        {
+            auto complexity = static_cast<UINT32> (67 + (1 - targetSizeFactor) * 33 / rpp);
+            return std::min(100U, complexity);
+        }
+        else
+            return 67U;
     }
 
 }// end of namespace application

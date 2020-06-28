@@ -1,11 +1,12 @@
 #ifndef MEDIAFOUNDATIONWRAPPERS_H // header guard
 #define MEDIAFOUNDATIONWRAPPERS_H
 
-#include <3FD\base.h>
-#include <string>
 #include <chrono>
-#include <vector>
+#include <cinttypes>
 #include <map>
+#include <string>
+#include <vector>
+
 #include <wrl.h>
 #include <d3d11.h>
 #include <mfreadwrite.h>
@@ -37,9 +38,12 @@ namespace application
     /// </summary>
     struct DecodedMediaType
     {
+        GUID majorType;
         UINT32 originalEncodedDataRate;
         ComPtr<IMFMediaType> mediaType;
     };
+
+    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, float targetSizeFactor);
 
     /// <summary>
     /// Enumerates the possible states of a stream being read, that would
@@ -55,11 +59,12 @@ namespace application
     /// <summary>
     /// Wraps Media Foundation Source Reader object.
     /// </summary>
-    class MFSourceReader : notcopiable
+    class MFSourceReader
     {
     private:
 
         DWORD m_streamCount;
+        uint32_t m_fileSize;
         ComPtr<IMFSourceReader> m_mfSourceReader;
         ComPtr<IMFSourceReaderCallback> m_srcReadCallback;
 
@@ -68,6 +73,8 @@ namespace application
     public:
 
         MFSourceReader(const string &url, const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan);
+
+		MFSourceReader(const MFSourceReader &) = delete;
 
         std::chrono::microseconds GetDuration() const;
 
@@ -84,7 +91,7 @@ namespace application
     /// Wraps Media Foundation Sink Writer object.
     /// THIS IS NOT A THREAD SAFE IMPLEMENTATION!
     /// </summary>
-    class MFSinkWriter : notcopiable
+    class MFSinkWriter
     {
     private:
 
@@ -125,6 +132,8 @@ namespace application
                      double targeSizeFactor,
                      Encoder encoder,
                      bool useHwAcceleration);
+
+		MFSinkWriter(const MFSinkWriter &) = delete;
 
         ~MFSinkWriter();
 

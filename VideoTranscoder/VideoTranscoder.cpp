@@ -3,16 +3,16 @@
 
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
-#include <3FD\runtime.h>
-#include <3FD\exceptions.h>
-#include <3FD\callstacktracer.h>
-#include <3FD\exceptions.h>
-#include <3FD\logger.h>
-#include <3FD\cmdline.h>
+#include <3fd\core\runtime.h>
+#include <3fd\core\exceptions.h>
+#include <3fd\core\callstacktracer.h>
+#include <3fd\core\logger.h>
+#include <3fd\utils\cmdline.h>
 
+#include <array>
+#include <codecvt>
 #include <iostream>
 #include <iomanip>
-#include <codecvt>
 #include <mfapi.h>
 
 namespace application
@@ -61,13 +61,16 @@ namespace application
     };
 
     // Parse arguments from command line
-    static bool ParseCommandLineArgs(int argc, const char *argv[], CmdLineParams &params)
+    static bool ParseCommandLineArgs(int argc, char *argv[], CmdLineParams &params)
     {
         CALL_STACK_TRACE;
 
         using _3fd::core::CommandLineArguments;
 
-        CommandLineArguments cmdLineArgs(80, CommandLineArguments::ArgValSeparator::Colon, true, false);
+        CommandLineArguments cmdLineArgs(120,
+                                         CommandLineArguments::ArgOptionSign::Slash,
+                                         CommandLineArguments::ArgValSeparator::Colon,
+                                         false);
 
         enum { ArgValEncoder, ArgValTgtSizeFactor, ArgValsListIO };
 
@@ -150,7 +153,7 @@ namespace application
 
 using namespace Microsoft::WRL;
 
-int main(int argc, const char *argv[])
+int main(int argc, char *argv[])
 {
     using namespace std::chrono;
     using namespace _3fd::core;

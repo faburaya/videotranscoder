@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
-#include <3FD\callstacktracer.h>
-#include <3FD\exceptions.h>
-#include <3FD\logger.h>
-#include <3FD\utils.h>
-#include <iostream>
+#include <3fd\core\callstacktracer.h>
+#include <3fd\core\exceptions.h>
+#include <3fd\core\logger.h>
+#include <3fd\utils\utils_concurrency.h>
+
 #include <algorithm>
 #include <codecvt>
+#include <fcntl.h>
+#include <io.h>
+#include <iostream>
 #include <memory>
 
 #include <Shlwapi.h>
@@ -431,13 +434,42 @@ namespace application
     }
 
     /// <summary>
+    /// Determines the size of a file.
+    /// </summary>
+    /// <param name="filePath">The path of the file.</param>
+    /// <return>The size of the file in bytes if successful, otherwise, 0.</return>
+    static uint32_t GetFileSize(const std::wstring &filePath)
+    {
+        int fd;
+        errno_t rc = _wsopen_s(&fd, filePath.c_str(), _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
+
+        if (fd == 0)
+        {
+            char buffer[256];
+
+            if (strerror_s(buffer, sizeof buffer, rc) != 0)
+                snprintf(buffer, sizeof buffer, "(secondary failure prevented retrieval of further details about error code %d)", rc);
+
+            Logger::Write("Could not open file to assess its size!", buffer, Logger::PRIO_ERROR);
+            return 0;
+        }
+
+        auto fileSize = _filelength(fd);
+
+        _close(fd);
+
+        return static_cast<uint32_t> (fileSize);
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MFSourceReader"/> class.
     /// </summary>
     /// <param name="url">The URL of the media source.</param>
     /// <param name="mfDXGIDevMan">Microsoft DXGI device manager reference.</param>
     MFSourceReader::MFSourceReader(const string &url, const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan)
     try :
-        m_streamCount(0UL),
+        m_streamCount(0),
+        m_fileSize(0),
         m_srcReadCallback(new MFSourceReaderCallbackImpl())
     {
         CALL_STACK_TRACE;
@@ -459,6 +491,9 @@ namespace application
 
         std::wstring_convert<std::codecvt_utf8<wchar_t>> transcoder;
         auto ucs2url = transcoder.from_bytes(url);
+
+        // this information is useful later for MPEG2, which does not provide average bitrate for the video stream
+        m_fileSize = GetFileSize(ucs2url);
 
         // create source reader:
         hr = MFCreateSourceReaderFromURL(ucs2url.c_str(),
@@ -558,8 +593,8 @@ namespace application
             }
 
             // and its major type...
-            GUID majorType = { 0 };
-            hr = originalMType->GetMajorType(&majorType);
+            decoded.majorType = { 0 };
+            hr = originalMType->GetMajorType(&decoded.majorType);
             if (FAILED(hr))
             {
                 WWAPI::RaiseHResultException(hr,
@@ -567,12 +602,24 @@ namespace application
                     "IMFMediaType::GetMajorType");
             }
 
-            // ... just to know its original bitrate
-            hr = originalMType->GetUINT32(
-                (majorType == MFMediaType_Video ? MF_MT_AVG_BITRATE : MF_MT_AUDIO_AVG_BYTES_PER_SECOND),
-                &decoded.originalEncodedDataRate
-            );
-
+            // ... just to know its original bitrate:
+            if (decoded.majorType == MFMediaType_Video)
+            {
+                // average bit rate not available?
+                if (FAILED(originalMType->GetUINT32(MF_MT_AVG_BITRATE, &decoded.originalEncodedDataRate)))
+                {
+                    // estimate using file size:
+                    decoded.originalEncodedDataRate = static_cast<UINT32> (
+                        0.998 * m_fileSize * 8 / std::chrono::duration_cast<std::chrono::seconds>(GetDuration()).count()
+                    );
+                }
+            }
+            else // audio stream:
+            {
+                hr = originalMType->GetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND,
+                                              &decoded.originalEncodedDataRate);
+            }
+            
             if (FAILED(hr))
             {
                 WWAPI::RaiseHResultException(hr,

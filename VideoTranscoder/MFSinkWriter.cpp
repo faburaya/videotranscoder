@@ -1,9 +1,8 @@
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
-#include <3FD\callstacktracer.h>
-#include <3FD\exceptions.h>
-#include <3FD\logger.h>
-#include <3FD\utils.h>
+#include <3fd\core\callstacktracer.h>
+#include <3fd\core\exceptions.h>
+#include <3fd\core\logger.h>
 #include <iostream>
 #include <algorithm>
 #include <codecvt>
@@ -261,25 +260,15 @@ namespace application
     {
         CALL_STACK_TRACE;
 
-        // Get the major type of the decoded input stream:
-        GUID majorType = { 0 };
-        HRESULT hr = decoded.mediaType->GetMajorType(&majorType);
-        if (FAILED(hr))
-        {
-            WWAPI::RaiseHResultException(hr,
-                "Failed to get major media type of decoded stream",
-                "IMFMediaType::GetMajorType");
-        }
-
         ComPtr<IMFMediaType> outputMType;
         MediaDataType mediaDataType;
 
-        if (majorType == MFMediaType_Video) // video? will encode
+        if (decoded.majorType == MFMediaType_Video) // video? will encode
         {
             mediaDataType = Video;
             outputMType = CreateOutVideoMediaType(decoded, targetSizeFactor, encoder);
         }
-        else if (majorType == MFMediaType_Audio) // audio? will encode
+        else if (decoded.majorType == MFMediaType_Audio) // audio? will encode
         {
             mediaDataType = Audio;
             outputMType = CreateOutAudioMediaType(decoded);
@@ -289,7 +278,7 @@ namespace application
 
         // Add the output stream:
         DWORD idxOutStream;
-        hr = m_mfSinkWriter->AddStream(outputMType.Get(), &idxOutStream);
+        HRESULT hr = m_mfSinkWriter->AddStream(outputMType.Get(), &idxOutStream);
         if (FAILED(hr))
         {
             WWAPI::RaiseHResultException(hr,
@@ -318,12 +307,11 @@ namespace application
                     "IMFSinkWriter::GetServiceForStream");
             }
 
-            // the smaller the output has to be, the greater is the encoding complexity to maintain quality:
-            _ASSERTE(targetSizeFactor > 0.0F && targetSizeFactor <= 1.0F);
-            auto complexity = static_cast<UINT32> (67 + (1.0F - targetSizeFactor * 0.8F) * 33);
+            auto qvs = EstimateGoodQualityForH264(decoded, targetSizeFactor);
 
-            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(complexity))) ||
-                FAILED(hr = codec->SetValue(&CODECAPI_AVEncAdaptiveMode, &CComVariant((ULONG)eAVEncAdaptiveMode_FrameRate))))
+            std::cout << "\nH.264 encoder will be set to quality " << qvs << std::endl;
+
+            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(qvs))))
             {
                 WWAPI::RaiseHResultException(hr, "Failed to set property for H.264 encoder", "ICodecAPI::SetValue");
             }
