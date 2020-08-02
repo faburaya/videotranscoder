@@ -3,7 +3,7 @@
 #include <3fd\core\callstacktracer.h>
 #include <3fd\core\exceptions.h>
 #include <3fd\core\logger.h>
-#include <3fd\utils\utils_concurrency.h>
+#include <3fd\utils\concurrency.h>
 
 #include <algorithm>
 #include <codecvt>

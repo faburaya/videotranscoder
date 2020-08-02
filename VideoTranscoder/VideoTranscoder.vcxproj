@@ -45,12 +45,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <IncludePath>$(ProgramW6432)\3fd\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProgramW6432)\3fd\lib64\debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(ProgramW6432)\3fd\lib\x64\debug;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>$(ProgramW6432)\3fd\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProgramW6432)\3fd\lib64\release;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(ProgramW6432)\3fd\lib\x64\release;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
