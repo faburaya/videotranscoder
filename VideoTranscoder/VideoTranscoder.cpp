@@ -19,33 +19,40 @@ namespace application
 {
     using namespace _3fd::core;
 
-    // Prints a pretty progress bar
+    /// <summary>
+    /// Prints a progress bar given the progress.
+    /// </summary>
+    /// <param name="progress">Progress of transcoding within range [0,1].</param>
     void PrintProgressBar(double progress)
     {
         // Amount of symbols = inside the progress bar
-        const int qtBarSteps(50);
+        const int qtBarSteps(60);
 
-        static int done;
+        static int donePercentage(0);
+        static int doneSteps(0);
 
         // Only update the progress bar if there is a change:
-        int update = (int)(qtBarSteps * progress);
-        if (update == done)
+        int updatePercentage = static_cast<int>(progress * 100);
+        if (updatePercentage == donePercentage)
             return;
         else
-            done = update;
+        {
+            donePercentage = updatePercentage;
+            doneSteps = static_cast<int>(qtBarSteps * progress);
+        }
 
         // Print the progress bar:
 
         std::cout << "\rProgress: [";
 
-        for (int idx = 0; idx < done; ++idx)
+        for (int idx = 0; idx < doneSteps; ++idx)
             std::cout << '#';
 
-        int remaining = qtBarSteps - done;
+        int remaining = qtBarSteps - doneSteps;
         for (int idx = 0; idx < remaining; ++idx)
             std::cout << ' ';
 
-        std::cout << "] " << static_cast<int> (100 * progress) << " % done" << std::flush;
+        std::cout << "] " << donePercentage << " % done" << std::flush;
     }
 
     //////////////////////////////
@@ -233,14 +240,14 @@ int main(int argc, char *argv[])
                 if (!sample)
                     continue;
 
-                LONGLONG timestamp;
-                sample->GetSampleTime(&timestamp);
-                double progress = timestamp / (duration.count() * 10.0);
+                LONGLONG timestampMillisecs;
+                sample->GetSampleTime(&timestampMillisecs);
+                double progress = timestampMillisecs / (duration.count() * 10.0);
                 application::PrintProgressBar(progress);
 
                 if ((state & static_cast<DWORD> (application::ReadStateFlags::GapFound)) != 0)
                 {
-                    sinkWriter.PlaceGap(idxStream, timestamp);
+                    sinkWriter.PlaceGap(idxStream, timestampMillisecs);
                 }
                 else if ((state & static_cast<DWORD> (application::ReadStateFlags::NewStreamAvailable)) != 0)
                 {
