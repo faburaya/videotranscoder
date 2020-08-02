@@ -207,7 +207,7 @@ namespace application
     /// <param name="decoded">Describes the decoded stream to add.</param>
     /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
     /// <returns>An integer value from 1 to 100 for the "quality vs speed" parameter.</returns>
-    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, float targetSizeFactor)
+    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, double targetSizeFactor)
     {
         UINT32  videoWidth;
         UINT32  videoHeigth;
@@ -230,7 +230,7 @@ namespace application
         /* The smaller the output has to be, the greater is the encoding complexity to maintain quality.
            Moreover, take into consideration that when the input is already efficiently encoded (empiric
            data points to Bps/pixel around 0.5), the complexity is from start expected to be high: */
-        _ASSERTE(targetSizeFactor > 0.0F && targetSizeFactor <= 1.0F);
+        _ASSERTE(targetSizeFactor > 0.0 && targetSizeFactor <= 1.0);
         if (rpp > 0)
         {
             auto complexity = static_cast<UINT32> (67 + (1 - targetSizeFactor) * 33 / rpp);

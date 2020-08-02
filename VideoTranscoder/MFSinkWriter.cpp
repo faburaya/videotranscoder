@@ -20,7 +20,7 @@ namespace application
 
     // Helps creating a video media type based in a model and parameters
     static ComPtr<IMFMediaType> CreateOutVideoMediaType(const DecodedMediaType &baseVideo,
-                                                        double targeSizeFactor,
+                                                        double targetSizeFactor,
                                                         Encoder encoder)
     {
         CALL_STACK_TRACE;
@@ -52,7 +52,9 @@ namespace application
                 "IMFMediaType::GetUINT32");
         }
 
-        UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targeSizeFactor);
+        UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targetSizeFactor);
+
+        std::cout << "\nTargeted video data rate is " << (videoAvgBitRate / (8 * 1024)) << " KB/s" << std::endl;
 
         // Create the video output media type:
         ComPtr<IMFMediaType> outputVideoMType;
@@ -309,7 +311,7 @@ namespace application
 
             auto qvs = EstimateGoodQualityForH264(decoded, targetSizeFactor);
 
-            std::cout << "\nH.264 encoder will be set to quality " << qvs << std::endl;
+            std::cout << "\nH.264 encoder set to quality " << qvs << std::endl;
 
             if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(qvs))))
             {

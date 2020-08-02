@@ -43,7 +43,7 @@ namespace application
         ComPtr<IMFMediaType> mediaType;
     };
 
-    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, float targetSizeFactor);
+    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, double targetSizeFactor);
 
     /// <summary>
     /// Enumerates the possible states of a stream being read, that would
