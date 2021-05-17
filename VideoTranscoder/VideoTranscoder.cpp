@@ -15,18 +15,29 @@
 #include <iomanip>
 #include <mfapi.h>
 
+using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
+
 namespace application
 {
     using namespace _3fd::core;
+
+    const char* GetTimestamp(const time_t timeTicks)
+    {
+        static std::array<char, 21> timestamp;
+        strftime(timestamp.data(), timestamp.size(), "%Y-%b-%d %H:%M:%S", localtime(&timeTicks));
+        return timestamp.data();
+    }
 
     /// <summary>
     /// Prints a progress bar given the progress.
     /// </summary>
     /// <param name="progress">Progress of transcoding within range [0,1].</param>
-    void PrintProgressBar(double progress)
+    void PrintProgressBar(double progress, const TimePoint startTime)
     {
-        // Amount of symbols = inside the progress bar
-        const int qtBarSteps(60);
+        using std::chrono::minutes;
+
+        // Amount of steps inside the progress bar
+        const int qtBarSteps(30);
 
         static int donePercentage(0);
         static int doneSteps(0);
@@ -41,18 +52,33 @@ namespace application
             doneSteps = static_cast<int>(qtBarSteps * progress);
         }
 
+        using std::chrono::system_clock;
+        using std::chrono::duration_cast;
+
+        const minutes eta = duration_cast<minutes>(
+            (system_clock::now() - startTime) * (1.0 - progress) / progress
+        );
+
         // Print the progress bar:
+        if (progress < 1.0)
+        {
+            std::cout << "\rProgress [";
 
-        std::cout << "\rProgress: [";
+            for (int idx = 0; idx < doneSteps; ++idx)
+                std::cout << '#';
 
-        for (int idx = 0; idx < doneSteps; ++idx)
-            std::cout << '#';
+            int remaining = qtBarSteps - doneSteps;
+            for (int idx = 0; idx < remaining; ++idx)
+                std::cout << ' ';
 
-        int remaining = qtBarSteps - doneSteps;
-        for (int idx = 0; idx < remaining; ++idx)
-            std::cout << ' ';
+            std::cout << "] " << donePercentage << " % done";
+            std::cout << " / Remaining " << eta.count() << " min  " << std::flush;
+            return;
+        }
 
-        std::cout << "] " << donePercentage << " % done" << std::flush;
+        const minutes totalTime = duration_cast<minutes>(system_clock::now() - startTime);
+        std::cout << "\rTranscoding finished at " << GetTimestamp(time(nullptr))
+                  << " (total elapsed time was " << totalTime.count() << " min\n" << std::endl;
     }
 
     //////////////////////////////
@@ -219,12 +245,12 @@ int main(int argc, char *argv[])
                                              params.encoder,
                                              true);
 
-        std::array<char, 21> timestamp;
-        auto now = system_clock::to_time_t(system_clock::now());
-        strftime(timestamp.data(), timestamp.size(), "%Y-%b-%d %H:%M:%S", localtime(&now));
-        std::cout << "\nTranscoding starting at " << timestamp.data() << '\n' << std::endl;
+        const TimePoint startTime = system_clock::now();
+        std::cout << "\nTranscoding starting at "
+                  << application::GetTimestamp(system_clock::to_time_t(startTime))
+                  << '\n' << std::endl;
 
-        application::PrintProgressBar(0.0);
+        application::PrintProgressBar(0.0, startTime);
 
         try
         {
@@ -240,14 +266,14 @@ int main(int argc, char *argv[])
                 if (!sample)
                     continue;
 
-                LONGLONG timestampMillisecs;
-                sample->GetSampleTime(&timestampMillisecs);
-                double progress = timestampMillisecs / (duration.count() * 10.0);
-                application::PrintProgressBar(progress);
+                LONGLONG timestampIn100ns;
+                sample->GetSampleTime(&timestampIn100ns);
+                double progress = timestampIn100ns / (duration.count() * 10.0);
+                application::PrintProgressBar(progress, startTime);
 
                 if ((state & static_cast<DWORD> (application::ReadStateFlags::GapFound)) != 0)
                 {
-                    sinkWriter.PlaceGap(idxStream, timestampMillisecs);
+                    sinkWriter.PlaceGap(idxStream, timestampIn100ns);
                 }
                 else if ((state & static_cast<DWORD> (application::ReadStateFlags::NewStreamAvailable)) != 0)
                 {
@@ -275,11 +301,7 @@ int main(int argc, char *argv[])
             throw;
         }
 
-        application::PrintProgressBar(1.0);
-
-        now = system_clock::to_time_t(system_clock::now());
-        strftime(timestamp.data(), timestamp.size(), "%Y-%b-%d %H:%M:%S", localtime(&now));
-        std::cout << "\n\nTranscoding finished at " << timestamp.data() << std::endl;
+        application::PrintProgressBar(1.0, startTime);
     }
     catch (IAppException &ex)
     {
