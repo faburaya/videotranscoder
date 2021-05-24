@@ -15,6 +15,7 @@
 namespace application
 {
     using namespace _3fd::core;
+    using namespace _3fd::utils;
 
     //////////////////////////////
     // Class MediaFoundationLib
@@ -53,11 +54,20 @@ namespace application
     // Miscelaneous
     //////////////////////
 
+    static std::string GetAdapterDescription(const ComPtr<IDXGIAdapter1>& dxgiAdapter)
+    {
+        DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
+        HRESULT hr = dxgiAdapter->GetDesc1(&dxgiAdapterDesc);
+        if (SUCCEEDED(hr))
+            return to_utf8(dxgiAdapterDesc.Description);
+
+        return "(unknown)";
+    }
+
     static ComPtr<IDXGIAdapter1> FindDxgiAdapter(std::string gpuDeviceNameKey)
     {
         CALL_STACK_TRACE;
 
-        using namespace _3fd::utils;
         gpuDeviceNameKey = to_lower(gpuDeviceNameKey);
 
         // Create DXGI factory:
@@ -66,41 +76,37 @@ namespace application
         if (FAILED(hr))
             WWAPI::RaiseHResultException(hr, "Failed to create DXGI factory", "CreateDXGIFactory1");
 
+        struct {
+            ComPtr<IDXGIAdapter1> adapter;
+            std::string description;
+        } found;
+
         // Get a video adapter:
-        ComPtr<IDXGIAdapter1> dxgiDefaultAdapter;
         ComPtr<IDXGIAdapter1> dxgiAdapter;
-        UINT idxVideoAdapter = 0;
-        while (
-            (hr = dxgiFactory->EnumAdapters1(idxVideoAdapter, dxgiAdapter.GetAddressOf()))
-            != DXGI_ERROR_NOT_FOUND)
+        for (UINT idxVideoAdapter = 0;
+             (hr = dxgiFactory->EnumAdapters1(idxVideoAdapter, dxgiAdapter.GetAddressOf())) != DXGI_ERROR_NOT_FOUND;
+             ++idxVideoAdapter)
         {
             if (FAILED(hr))
                 WWAPI::RaiseHResultException(hr, "Failed to enumerate video adapters", "IDXGIAdapter1::EnumAdapters1");
 
-            if (idxVideoAdapter == 0)
-                dxgiDefaultAdapter = dxgiAdapter;
+            std::string description = GetAdapterDescription(dxgiAdapter);
 
-            // Get video adapter description:
-            DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
-            hr = dxgiAdapter->GetDesc1(&dxgiAdapterDesc);
-            if (!FAILED(hr))
+            if (idxVideoAdapter == 0) // first adapter is the fallback
+                found = { dxgiAdapter, description };
+
+            if (to_lower(description).find(gpuDeviceNameKey) != std::string::npos)
             {
-                std::string deviceName = to_utf8(dxgiAdapterDesc.Description);
-
-                if (to_lower(deviceName).find(gpuDeviceNameKey) != std::string::npos)
-                {
-                    std::cout << "Selected DXGI video adapter is \'" << deviceName << '\'' << std::endl;
-                    return dxgiAdapter;
-                }
+                found = { dxgiAdapter, description };
+                break;
             }
-
-            ++idxVideoAdapter;
         }
 
-        if (!dxgiDefaultAdapter)
+        if (!found.adapter)
             throw AppException<std::runtime_error>("No DXGI video adapter could be found!");
 
-        return dxgiDefaultAdapter;
+        std::cout << "Selected DXGI video adapter is \'" << found.description << '\'' << std::endl;
+        return found.adapter;
     }
 
     /// <summary>
@@ -235,13 +241,16 @@ namespace application
     }
 
     /// <summary>
-    /// Estimates a value for the "quality vs speed" configurable parameter of the H.264
-    /// encoder so as to maintain good quality, based on empiric data from real videos.
+    /// Estimates a value for the "quality vs speed" configurable parameter for the encoders.
     /// </summary>
+    /// <remarks>
+    /// In order to maintain good quality, the calculation has been based
+    /// on empirical data of real videos using the H.264 encoder.
+    /// </remarks>
     /// <param name="decoded">Describes the decoded stream to add.</param>
     /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
-    /// <returns>An integer value from 1 to 100 for the "quality vs speed" parameter.</returns>
-    UINT32 EstimateGoodQualityForH264(DecodedMediaType decoded, double targetSizeFactor)
+    /// <returns>An integer in [1,100] for the "quality vs speed" parameter.</returns>
+    UINT32 EstimateGoodQualityForEncoder(DecodedMediaType decoded, double targetSizeFactor)
     {
         UINT32  videoWidth;
         UINT32  videoHeigth;
@@ -271,7 +280,7 @@ namespace application
             return std::min(100U, complexity);
         }
         else
-            return 67U;
+            return 80U;
     }
 
 }// end of namespace application

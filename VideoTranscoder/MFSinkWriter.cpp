@@ -267,16 +267,19 @@ namespace application
 
         if (decoded.majorType == MFMediaType_Video) // video? will encode
         {
-            mediaDataType = Video;
+            mediaDataType = MediaDataType::Video;
             outputMType = CreateOutVideoMediaType(decoded, targetSizeFactor, encoder);
         }
         else if (decoded.majorType == MFMediaType_Audio) // audio? will encode
         {
-            mediaDataType = Audio;
+            mediaDataType = MediaDataType::Audio;
             outputMType = CreateOutAudioMediaType(decoded);
         }
         else // other? will copy
+        {
+            mediaDataType = MediaDataType::Other;
             outputMType = decoded.mediaType;
+        }
 
         // Add the output stream:
         DWORD idxOutStream;
@@ -297,11 +300,10 @@ namespace application
                 "IMFSinkWriter::SetInputMediaType");
         }
 
-        // Fine configuration of H.264 encoder:
-        if (mediaDataType == Video && encoder == Encoder::H264_AVC)
+        if (mediaDataType == MediaDataType::Video)
         {
             ComPtr<ICodecAPI> codec;
-            m_mfSinkWriter->GetServiceForStream(idxOutStream, GUID_NULL, IID_PPV_ARGS(codec.GetAddressOf()));
+            hr = m_mfSinkWriter->GetServiceForStream(idxOutStream, GUID_NULL, IID_PPV_ARGS(codec.GetAddressOf()));
             if (FAILED(hr))
             {
                 WWAPI::RaiseHResultException(hr,
@@ -309,13 +311,15 @@ namespace application
                     "IMFSinkWriter::GetServiceForStream");
             }
 
-            auto qvs = EstimateGoodQualityForH264(decoded, targetSizeFactor);
+            auto qvs = EstimateGoodQualityForEncoder(decoded, targetSizeFactor);
 
-            std::cout << "\nH.264 encoder set to quality " << qvs << std::endl;
+            std::cout << "\nEncoder 'quality vs. speed' set to " << qvs << '%' << std::endl;
 
             if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(qvs))))
             {
-                WWAPI::RaiseHResultException(hr, "Failed to set property for H.264 encoder", "ICodecAPI::SetValue");
+                WWAPI::RaiseHResultException(hr,
+                    "Failed to set property 'CODECAPI_AVEncCommonQualityVsSpeed' encoder",
+                    "ICodecAPI::SetValue");
             }
         }
 
@@ -499,7 +503,7 @@ namespace application
             For audio, call this method at least once per second during a gap in the audio."
             https://msdn.microsoft.com/en-us/library/windows/desktop/dd374652.aspx */
         
-        if (streamInfo.mediaDType == Video)
+        if (streamInfo.mediaDType == MediaDataType::Video)
         {
             HRESULT hr = m_mfSinkWriter->SendStreamTick(streamInfo.outIndex, timestamp);
             if (FAILED(hr))
@@ -507,7 +511,7 @@ namespace application
 
             //m_streamsGapsTracking[streamInfo.outIndex] = timestamp; // remember last gap instant
         }
-        else if (streamInfo.mediaDType == Audio)
+        else if (streamInfo.mediaDType == MediaDataType::Audio)
         {
             auto &lastGap = m_streamsGapsTracking[streamInfo.outIndex];
 

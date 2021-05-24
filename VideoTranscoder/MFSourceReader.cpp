@@ -443,15 +443,14 @@ namespace application
         int fd;
         errno_t rc = _wsopen_s(&fd, filePath.c_str(), _O_RDONLY | _O_BINARY, _SH_DENYNO, 0);
 
-        if (fd == 0)
+        if (rc != 0)
         {
             char buffer[256];
 
             if (strerror_s(buffer, sizeof buffer, rc) != 0)
                 snprintf(buffer, sizeof buffer, "(secondary failure prevented retrieval of further details about error code %d)", rc);
 
-            Logger::Write("Could not open file to assess its size!", buffer, Logger::PRIO_ERROR);
-            return 0;
+            throw AppException<std::runtime_error>("Could not open file to assess its size!", buffer);            
         }
 
         auto fileSize = _filelength(fd);
@@ -492,7 +491,8 @@ namespace application
         std::wstring_convert<std::codecvt_utf8<wchar_t>> transcoder;
         auto ucs2url = transcoder.from_bytes(url);
 
-        // this information is useful later for MPEG2, which does not provide average bitrate for the video stream
+        /* this information is useful later for MPEG2,
+           which does not provide average bitrate for the video stream */
         m_fileSize = GetFileSize(ucs2url);
 
         // create source reader:
