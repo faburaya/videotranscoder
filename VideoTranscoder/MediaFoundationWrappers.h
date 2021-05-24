@@ -30,7 +30,7 @@ namespace application
 
     const char *TranslateMFTCategory(const GUID &mftCategory);
 
-    ComPtr<ID3D11Device> GetDeviceDirect3D(UINT idxVideoAdapter);
+    ComPtr<ID3D11Device> GetDeviceDirect3D(const char *gpuDeviceNameKey);
 
     /// <summary>
     /// Packs the necessary stream metadata from source reader

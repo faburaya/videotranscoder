@@ -3,6 +3,7 @@
 #include <3fd\core\callstacktracer.h>
 #include <3fd\core\exceptions.h>
 #include <3fd\core\logger.h>
+#include <3fd\utils\text.h>
 #include <iostream>
 #include <algorithm>
 #include <codecvt>
@@ -52,14 +53,12 @@ namespace application
     // Miscelaneous
     //////////////////////
 
-    /// <summary>
-    /// Helps obtaining a Direct3D device for Microsoft DXGI.
-    /// </summary>
-    /// <param name="idxVideoAdapter">The index of the video adapter whose device will be in use by DXVA.</param>
-    /// <returns>The Direct3D device.</returns>
-    ComPtr<ID3D11Device> GetDeviceDirect3D(UINT idxVideoAdapter)
+    static ComPtr<IDXGIAdapter1> FindDxgiAdapter(std::string gpuDeviceNameKey)
     {
         CALL_STACK_TRACE;
+
+        using namespace _3fd::utils;
+        gpuDeviceNameKey = to_lower(gpuDeviceNameKey);
 
         // Create DXGI factory:
         ComPtr<IDXGIFactory1> dxgiFactory;
@@ -68,24 +67,50 @@ namespace application
             WWAPI::RaiseHResultException(hr, "Failed to create DXGI factory", "CreateDXGIFactory1");
 
         // Get a video adapter:
+        ComPtr<IDXGIAdapter1> dxgiDefaultAdapter;
         ComPtr<IDXGIAdapter1> dxgiAdapter;
-        dxgiFactory->EnumAdapters1(idxVideoAdapter, dxgiAdapter.GetAddressOf());
-        if (FAILED(hr))
-            WWAPI::RaiseHResultException(hr, "Failed to enumerate video adapters", "IDXGIAdapter1::EnumAdapters1");
-
-        // Get video adapter description:
-        DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
-        dxgiAdapter->GetDesc1(&dxgiAdapterDesc);
-        if (FAILED(hr))
+        UINT idxVideoAdapter = 0;
+        while (
+            (hr = dxgiFactory->EnumAdapters1(idxVideoAdapter, dxgiAdapter.GetAddressOf()))
+            != DXGI_ERROR_NOT_FOUND)
         {
-            WWAPI::RaiseHResultException(hr,
-                "Failed to retrieve DXGI video adapter description",
-                "IDXGIAdapter1::GetDesc1");
+            if (FAILED(hr))
+                WWAPI::RaiseHResultException(hr, "Failed to enumerate video adapters", "IDXGIAdapter1::EnumAdapters1");
+
+            if (idxVideoAdapter == 0)
+                dxgiDefaultAdapter = dxgiAdapter;
+
+            // Get video adapter description:
+            DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
+            hr = dxgiAdapter->GetDesc1(&dxgiAdapterDesc);
+            if (!FAILED(hr))
+            {
+                std::string deviceName = to_utf8(dxgiAdapterDesc.Description);
+
+                if (to_lower(deviceName).find(gpuDeviceNameKey) != std::string::npos)
+                {
+                    std::cout << "Selected DXGI video adapter is \'" << deviceName << '\'' << std::endl;
+                    return dxgiAdapter;
+                }
+            }
+
+            ++idxVideoAdapter;
         }
 
-        std::wstring_convert<std::codecvt_utf8<wchar_t>> transcoder;
-        std::cout << "Selected DXGI video adapter is \'"
-            << transcoder.to_bytes(dxgiAdapterDesc.Description) << '\'' << std::endl;
+        if (!dxgiDefaultAdapter)
+            throw AppException<std::runtime_error>("No DXGI video adapter could be found!");
+
+        return dxgiDefaultAdapter;
+    }
+
+    /// <summary>
+    /// Helps obtaining a Direct3D device for Microsoft DXGI.
+    /// </summary>
+    /// <param name="gpuDeviceNameKey">Part of the name of the GPU device to look for.</param>
+    /// <returns>The Direct3D device for the requested adapter, if available.</returns>
+    ComPtr<ID3D11Device> GetDeviceDirect3D(const char* gpuDeviceNameKey)
+    {
+        CALL_STACK_TRACE;
 
         // Direct3D feature level codes and names:
 
@@ -100,11 +125,15 @@ namespace application
             KeyValPair{ D3D_FEATURE_LEVEL_10_1, "Direct3D 10.1" },
             KeyValPair{ D3D_FEATURE_LEVEL_11_0, "Direct3D 11.0" },
             KeyValPair{ D3D_FEATURE_LEVEL_11_1, "Direct3D 11.1" },
+            KeyValPair{ D3D_FEATURE_LEVEL_12_0, "Direct3D 12.0" },
+            KeyValPair{ D3D_FEATURE_LEVEL_12_1, "Direct3D 12.1" },
         };
 
         // Feature levels for Direct3D support
         const D3D_FEATURE_LEVEL d3dFeatureLevels[] =
         {
+            D3D_FEATURE_LEVEL_12_1,
+            D3D_FEATURE_LEVEL_12_0,
             D3D_FEATURE_LEVEL_11_1,
             D3D_FEATURE_LEVEL_11_0,
             D3D_FEATURE_LEVEL_10_1,
@@ -114,12 +143,15 @@ namespace application
             D3D_FEATURE_LEVEL_9_1,
         };
 
-        constexpr auto nFeatLevels = static_cast<UINT> ((sizeof d3dFeatureLevels) / sizeof(D3D_FEATURE_LEVEL));
+        constexpr auto nFeatLevels =
+            static_cast<UINT> ((sizeof d3dFeatureLevels) / sizeof(D3D_FEATURE_LEVEL));
+
+        auto dxgiAdapter = FindDxgiAdapter(gpuDeviceNameKey);
 
         // Create Direct3D device:
         D3D_FEATURE_LEVEL featLevelCodeSuccess;
         ComPtr<ID3D11Device> d3dDx11Device;
-        hr = D3D11CreateDevice(
+        HRESULT hr = D3D11CreateDevice(
             dxgiAdapter.Get(),
             D3D_DRIVER_TYPE_UNKNOWN,
             nullptr,
@@ -132,17 +164,19 @@ namespace application
             nullptr
         );
 
-        // Might have failed for lack of Direct3D 11.1 runtime:
+        // Might have failed for lack of Direct3D 11+ runtime:
         if (hr == E_INVALIDARG)
         {
-            // Try again without Direct3D 11.1:
+            const size_t indicesToSkip(3);
+
+            // Try again without Direct3D 11+:
             hr = D3D11CreateDevice(
                 dxgiAdapter.Get(),
                 D3D_DRIVER_TYPE_UNKNOWN,
                 nullptr,
                 D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
-                d3dFeatureLevels + 1,
-                nFeatLevels - 1,
+                d3dFeatureLevels + indicesToSkip,
+                nFeatLevels - indicesToSkip,
                 D3D11_SDK_VERSION,
                 d3dDx11Device.GetAddressOf(),
                 &featLevelCodeSuccess,

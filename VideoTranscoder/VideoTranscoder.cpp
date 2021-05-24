@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
+#include "CommandLineParsing.hpp"
 #include <3fd\core\runtime.h>
 #include <3fd\core\exceptions.h>
 #include <3fd\core\callstacktracer.h>
@@ -12,7 +13,6 @@
 #include <array>
 #include <codecvt>
 #include <iostream>
-#include <iomanip>
 #include <mfapi.h>
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
@@ -78,106 +78,9 @@ namespace application
 
         const minutes totalTime = duration_cast<minutes>(system_clock::now() - startTime);
         std::cout << "\rTranscoding finished at " << GetTimestamp(time(nullptr))
-                  << " (total elapsed time was " << totalTime.count() << " min\n" << std::endl;
+                  << " (total elapsed time was " << totalTime.count() << " min)\n" << std::endl;
     }
 
-    //////////////////////////////
-    // Command line arguments
-    //////////////////////////////
-
-    struct CmdLineParams
-    {
-        double tgtSizeFactor;
-        Encoder encoder;
-        const char *inputFName;
-        const char *outputFName;
-    };
-
-    // Parse arguments from command line
-    static bool ParseCommandLineArgs(int argc, char *argv[], CmdLineParams &params)
-    {
-        CALL_STACK_TRACE;
-
-        using _3fd::core::CommandLineArguments;
-
-        CommandLineArguments cmdLineArgs(120,
-                                         CommandLineArguments::ArgOptionSign::Slash,
-                                         CommandLineArguments::ArgValSeparator::Colon,
-                                         false);
-
-        enum { ArgValEncoder, ArgValTgtSizeFactor, ArgValsListIO };
-
-        cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
-            ArgValEncoder,
-            CommandLineArguments::ArgType::OptionWithReqValue,
-            CommandLineArguments::ArgValType::EnumString,
-            'e', "encoder",
-            "What encoder to use, always with the highest profile made available "
-            "by Microsoft Media Foundation, for better compression"
-        }, { "h264", "hevc" });
-
-        cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
-            ArgValTgtSizeFactor,
-            CommandLineArguments::ArgType::OptionWithReqValue,
-            CommandLineArguments::ArgValType::RangeFloat,
-            't', "tsf",
-            "The target size of the output transcoded video, as a fraction of the original size"
-        }, { 0.5, 0.001, 1.0 });
-
-        cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
-            ArgValsListIO,
-            CommandLineArguments::ArgType::ValuesList,
-            CommandLineArguments::ArgValType::String,
-            0, "input output",
-            "input & output files"
-        }, { (uint16_t)2, (uint16_t)2 });
-
-        const char *usageMessage("\nUsage:\n\n VideoTranscoder [/e:encoder] [/t:target_size_factor] input output\n\n");
-
-        if (cmdLineArgs.Parse(argc, argv) == STATUS_FAIL)
-        {
-            std::cerr << usageMessage;
-            cmdLineArgs.PrintArgsInfo();
-            return STATUS_FAIL;
-        }
-
-        bool isPresent;
-        const char *encoderLabel = cmdLineArgs.GetArgValueString(ArgValEncoder, isPresent);
-        std::cout << '\n' << std::setw(22) << "encoder = " << encoderLabel
-                  << (isPresent ? " " : " (default)");
-
-        if (strcmp(encoderLabel, "h264") == 0)
-            params.encoder = Encoder::H264_AVC;
-        else if (strcmp(encoderLabel, "hevc") == 0)
-            params.encoder = Encoder::H265_HEVC;
-        else
-            _ASSERTE(false);
-
-        params.tgtSizeFactor = cmdLineArgs.GetArgValueFloat(ArgValTgtSizeFactor, isPresent);
-        std::cout << '\n' << std::setw(22) << "target size factor = " << params.tgtSizeFactor
-                  << (isPresent ? " " : " (default)");
-
-        std::vector<const char *> filesNames;
-        cmdLineArgs.GetArgListOfValues(filesNames);
-
-        if (filesNames.size() != 2)
-        {
-            std::cerr << "\nMust provide input & output files!\n" << usageMessage;
-            cmdLineArgs.PrintArgsInfo();
-            return STATUS_FAIL;
-        }
-
-        params.inputFName = filesNames[0];
-        std::cout << '\n' << std::setw(22)
-                  << "input = " << params.inputFName;
-
-        params.outputFName = filesNames[1];
-        std::cout << '\n' << std::setw(22)
-                  << "output = " << params.outputFName << '\n' << std::endl;
-
-        return STATUS_OKAY;
-    }
-    
 }// end of namespace application
 
 /////////////////
@@ -197,6 +100,8 @@ int main(int argc, char *argv[])
 
     try
     {
+        SetConsoleOutputCP(CP_UTF8);
+
         application::CmdLineParams params;
         if (application::ParseCommandLineArgs(argc, argv, params) == STATUS_FAIL)
             return EXIT_FAILURE;
@@ -215,7 +120,7 @@ int main(int argc, char *argv[])
         }
 
         // Get Direct3D device and associate with DXGI device manager:
-        auto d3dDevice = application::GetDeviceDirect3D(0);
+        auto d3dDevice = application::GetDeviceDirect3D(params.gpuDevNameKey);
         mfDXGIDevMan->ResetDevice(d3dDevice.Get(), dxgiResetToken);
 
         // Load media source and select decoders

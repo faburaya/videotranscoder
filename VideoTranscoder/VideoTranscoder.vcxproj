@@ -100,11 +100,13 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CommandLineParsing.hpp" />
     <ClInclude Include="MediaFoundationWrappers.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommandLineParsing.cpp" />
     <ClCompile Include="MFSinkWriter.cpp" />
     <ClCompile Include="MFSourceReader.cpp" />
     <ClCompile Include="MPUtilities.cpp" />
