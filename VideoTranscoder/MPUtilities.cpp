@@ -276,7 +276,7 @@ namespace application
         _ASSERTE(targetSizeFactor > 0.0 && targetSizeFactor <= 1.0);
         if (rpp > 0)
         {
-            auto complexity = static_cast<UINT32> (67 + (1 - targetSizeFactor) * 33 / rpp);
+            auto complexity = static_cast<UINT32> (67 + (1 - targetSizeFactor) * 66 * rpp);
             return std::min(100U, complexity);
         }
         else

@@ -162,7 +162,8 @@ namespace application
             FAILED(hr = outputAudioMType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC)) ||
             FAILED(hr = outputAudioMType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, bitsPerSample)) ||
             FAILED(hr = outputAudioMType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate)) ||
-            FAILED(hr = outputAudioMType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, numChannels)))
+            FAILED(hr = outputAudioMType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, numChannels)) ||
+            FAILED(hr = outputAudioMType->SetUINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0x33)))
         {
             WWAPI::RaiseHResultException(hr,
                 "Failed to set attribute of media type for audio output",
