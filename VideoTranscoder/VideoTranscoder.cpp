@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
         application::MFSinkWriter sinkWriter(params.outputFName,
                                              mfDXGIDevMan,
                                              srcReadDecStreams,
-                                             params.tgtSizeFactor,
+                                             params.tgtQuality,
                                              params.encoder,
                                              !params.disableEncoderHwAcc);
 
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
                 {
                     auto prevLastIdxStream = srcReadDecStreams.rbegin()->first;
                     sourceReader.GetOutputMediaTypesFrom(prevLastIdxStream + 1, srcReadDecStreams);
-                    sinkWriter.AddNewStreams(srcReadDecStreams, params.tgtSizeFactor, params.encoder);
+                    sinkWriter.AddNewStreams(srcReadDecStreams, params.tgtQuality, params.encoder);
                 }
 
                 sinkWriter.EncodeSample(idxStream, sample);

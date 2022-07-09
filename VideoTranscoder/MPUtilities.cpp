@@ -248,9 +248,9 @@ namespace application
     /// on empirical data of real videos using the H.264 encoder.
     /// </remarks>
     /// <param name="decoded">Describes the decoded stream to add.</param>
-    /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <param name="tgtQuality">The targetted quality (1.0 is 100%) of the video output.</param>
     /// <returns>An integer in [1,100] for the "quality vs speed" parameter.</returns>
-    UINT32 EstimateGoodQualityForEncoder(DecodedMediaType decoded, double targetSizeFactor)
+    UINT32 EstimateBalanceQualityVsSpeed(DecodedMediaType decoded, double tgtQuality)
     {
         UINT32  videoWidth;
         UINT32  videoHeigth;
@@ -268,15 +268,15 @@ namespace application
         }
 
         // calculate Bps/pixel:
-        auto rpp = static_cast<float> (decoded.originalEncodedDataRate / 8) / (videoWidth * videoHeigth);
+        const auto rpp = static_cast<double> (decoded.originalEncodedDataRate / 8) / (videoWidth * videoHeigth);
 
         /* The smaller the output has to be, the greater is the encoding complexity to maintain quality.
            Moreover, take into consideration that when the input is already efficiently encoded (empiric
            data points to Bps/pixel around 0.5), the complexity is from start expected to be high: */
-        _ASSERTE(targetSizeFactor > 0.0 && targetSizeFactor <= 1.0);
-        if (rpp > 0)
+        _ASSERTE(tgtQuality > 0.0 && tgtQuality <= 1.0);
+        if (rpp > 0.0)
         {
-            auto complexity = static_cast<UINT32> (67 + (1 - targetSizeFactor) * 66 * rpp);
+            const auto complexity = static_cast<UINT32> (67 + tgtQuality * 17 / rpp);
             return std::min(100U, complexity);
         }
         else

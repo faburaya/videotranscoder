@@ -20,7 +20,7 @@ namespace application
         enum {
             ArgValEncoder,
             ArgOptHwAcc,
-            ArgValTgtSizeFactor, 
+            ArgValTgtQuality, 
             ArgValGpuDev, 
             ArgValsListIO
         };
@@ -30,8 +30,7 @@ namespace application
             CommandLineArguments::ArgType::OptionWithReqValue,
             CommandLineArguments::ArgValType::EnumString,
             'e', "encoder",
-            "What encoder to use, always with the highest profile made available "
-            "by Microsoft Media Foundation, for better compression"
+            "What video encoder to use (powered by Microsoft Media Foundation)"
         }, { "h264", "hevc" });
 
         cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
@@ -43,11 +42,11 @@ namespace application
             });
 
         cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
-            ArgValTgtSizeFactor,
+            ArgValTgtQuality,
             CommandLineArguments::ArgType::OptionWithReqValue,
             CommandLineArguments::ArgValType::RangeFloat,
-            't', "tsf",
-            "The target size of the output transcoded video, as a fraction of the original size"
+            'q', "quality",
+            "The targetted quality of the video stream output"
         }, { 0.5, 0.001, 1.0 });
 
         cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
@@ -66,7 +65,7 @@ namespace application
             "input & output files"
         }, { (uint16_t)2, (uint16_t)2 });
 
-        const char* usageMessage("\nUsage:\n\n VideoTranscoder [/e:encoder] [/s] [/t:target_size_factor] input output\n\n");
+        const char* usageMessage("\nUsage:\n\n VideoTranscoder [/e:encoder] [/s] [/q:quality] input output\n\n");
 
         if (cmdLineArgs.Parse(argc, argv) == STATUS_FAIL)
         {
@@ -89,8 +88,8 @@ namespace application
         else
             _ASSERTE(false);
 
-        params.tgtSizeFactor = cmdLineArgs.GetArgValueFloat(ArgValTgtSizeFactor, isPresent);
-        std::cout << '\n' << std::setw(25) << "target size factor = " << params.tgtSizeFactor
+        params.tgtQuality = cmdLineArgs.GetArgValueFloat(ArgValTgtQuality, isPresent);
+        std::cout << '\n' << std::setw(25) << "targetted quality = " << params.tgtQuality
             << (isPresent ? " " : " (default)");
 
         params.gpuDevNameKey = cmdLineArgs.GetArgValueString(ArgValGpuDev, isPresent);

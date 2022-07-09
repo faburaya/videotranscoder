@@ -43,7 +43,7 @@ namespace application
         ComPtr<IMFMediaType> mediaType;
     };
 
-    UINT32 EstimateGoodQualityForEncoder(DecodedMediaType decoded, double targetSizeFactor);
+    UINT32 EstimateBalanceQualityVsSpeed(DecodedMediaType decoded, double tgtQuality);
 
     /// <summary>
     /// Enumerates the possible states of a stream being read, that would
@@ -121,7 +121,7 @@ namespace application
         void AddStream(const ComPtr<IMFSinkWriterEx> &sinkWriterAltIntf,
                        DWORD idxDecStream,
                        const DecodedMediaType &decoded,
-                       double targeSizeFactor,
+                       double tgtQuality,
                        Encoder encoder);
 
     public:
@@ -129,7 +129,7 @@ namespace application
         MFSinkWriter(const string &url,
                      const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan,
                      const std::map<DWORD, DecodedMediaType> &decodedMTypes,
-                     double targeSizeFactor,
+                     double tgtQuality,
                      Encoder encoder,
                      bool useHwAcceleration);
 
@@ -138,7 +138,7 @@ namespace application
         ~MFSinkWriter();
 
         void AddNewStreams(const std::map<DWORD, DecodedMediaType> &decodedMTypes,
-                           double targeSizeFactor,
+                           double tgtQuality,
                            Encoder encoder);
 
         void EncodeSample(DWORD idxDecStream, const ComPtr<IMFSample> &sample);

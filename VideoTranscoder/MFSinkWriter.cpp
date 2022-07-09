@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "MediaFoundationWrappers.h"
+
 #include <3fd\core\callstacktracer.h>
 #include <3fd\core\exceptions.h>
 #include <3fd\core\logger.h>
 #include <iostream>
 #include <algorithm>
 #include <codecvt>
+#include <cmath>
 #include <array>
 
 #include <mfapi.h>
@@ -19,9 +21,7 @@ namespace application
     using namespace _3fd::core;
 
     // Helps creating a video media type based in a model and parameters
-    static ComPtr<IMFMediaType> CreateOutVideoMediaType(const DecodedMediaType &baseVideo,
-                                                        double targetSizeFactor,
-                                                        Encoder encoder)
+    static ComPtr<IMFMediaType> CreateOutVideoMediaType(const DecodedMediaType &baseVideo, Encoder encoder)
     {
         CALL_STACK_TRACE;
 
@@ -52,9 +52,8 @@ namespace application
                 "IMFMediaType::GetUINT32");
         }
 
-        UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targetSizeFactor);
-
-        std::cout << "\nTargeted video data rate is " << (videoAvgBitRate / (8 * 1024)) << " KB/s" << std::endl;
+        //UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targetSizeFactor);
+        //std::cout << "\nTargeted video data rate is " << (videoAvgBitRate / (8 * 1024)) << " KB/s" << std::endl;
 
         // Create the video output media type:
         ComPtr<IMFMediaType> outputVideoMType;
@@ -64,8 +63,8 @@ namespace application
 
         // Now, in the new media type, set the base values plus some hardcoded ones:
         if (FAILED(hr = outputVideoMType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video)) ||
-            FAILED(hr = outputVideoMType->SetUINT32(MF_MT_AVG_BITRATE, videoAvgBitRate)) ||
             FAILED(hr = outputVideoMType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive)) ||
+            //FAILED(hr = outputVideoMType->SetUINT32(MF_MT_AVG_BITRATE, videoAvgBitRate)) ||
 
             FAILED(hr = MFSetAttributeSize(outputVideoMType.Get(),
                                            MF_MT_FRAME_SIZE,
@@ -251,16 +250,15 @@ namespace application
     /// Adds a new (decoded) stream (input coming from source reader, found there)
     /// to the sink writer, hence creating a new (encoded) output stream.
     /// </summary>
-    /// <param name="sinkWriterAltIntf">An alternative interface to the sink writer,
-    /// capable of retrieving the selected media transform for each stream.</param>
+    /// <param name="sinkWriterAltIntf">An alternative interface to the sink writer, capable of retrieving the selected media transform for each stream.</param>
     /// <param name="idxDecStream">The index of the stream in source.</param>
     /// <param name="decoded">Describes the decoded stream to add.</param>
-    /// <param name="targetSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <param name="tgtQuality">The targetted quality (1.0 is 100%) of the video output.</param>
     /// <param name="encoder">What encoder to use for video.</param>
     void MFSinkWriter::AddStream(const ComPtr<IMFSinkWriterEx> &sinkWriterAltIntf,
                                  DWORD idxDecStream,
                                  const DecodedMediaType &decoded,
-                                 double targetSizeFactor,
+                                 double tgtQuality,
                                  Encoder encoder)
     {
         CALL_STACK_TRACE;
@@ -271,7 +269,7 @@ namespace application
         if (decoded.majorType == MFMediaType_Video) // video? will encode
         {
             mediaDataType = MediaDataType::Video;
-            outputMType = CreateOutVideoMediaType(decoded, targetSizeFactor, encoder);
+            outputMType = CreateOutVideoMediaType(decoded, encoder);
         }
         else if (decoded.majorType == MFMediaType_Audio) // audio? will encode
         {
@@ -322,7 +320,7 @@ namespace application
                     "ICodecAPI::SetValue");
             }
 
-            const UINT32 targetQuality(80);
+            const auto targetQuality = static_cast<UINT32>(round(100 * tgtQuality));
             if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQuality, &CComVariant(targetQuality))))
             {
                 WWAPI::RaiseHResultException(hr,
@@ -330,7 +328,7 @@ namespace application
                     "ICodecAPI::SetValue");
             }
 
-            const UINT32 qvs = EstimateGoodQualityForEncoder(decoded, targetSizeFactor);
+            const UINT32 qvs = EstimateBalanceQualityVsSpeed(decoded, tgtQuality);
             std::cout << "\nEncoder 'quality vs. speed' set to " << qvs << '%' << std::endl;
             if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(qvs))))
             {
@@ -352,10 +350,10 @@ namespace application
     /// to the sink writer, hence creating new (encoded) output streams.
     /// </summary>
     /// <param name="decodedMTypes">A dictionary of (decoded input) media types indexed by stream index.</param>
-    /// <param name="targeSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <param name="tgtQuality">The targetted quality (1.0 is 100%) of the video output.</param>
     /// <param name="encoder">What encoder to use for video.</param>
     void MFSinkWriter::AddNewStreams(const std::map<DWORD, DecodedMediaType> &decodedMTypes,
-                                     double targeSizeFactor,
+                                     double tgtQuality,
                                      Encoder encoder)
     {
         CALL_STACK_TRACE;
@@ -385,7 +383,7 @@ namespace application
             AddStream(sinkWriterAltIntf,
                       idxDecStream,
                       decoded,
-                      targeSizeFactor,
+                      tgtQuality,
                       encoder);
         }
 
@@ -404,13 +402,13 @@ namespace application
     /// <param name="url">The URL of the media source.</param>
     /// <param name="mfDXGIDevMan">Microsoft DXGI device manager reference.</param>
     /// <param name="decodedMTypes">A dictionary of (decoded input) media types indexed by stream index.</param>
-    /// <param name="targeSizeFactor">The target size of the video output, as a fraction of the originally encoded version.</param>
+    /// <param name="tgtQuality">The targetted quality (1.0 is 100%) of the video output.</param>
     /// <param name="encoder">What encoder to use for video.</param>
     /// <param name="useHwAcceleration">Whether hardware acceleration must be used.</param>
     MFSinkWriter::MFSinkWriter(const string &url,
                                const ComPtr<IMFDXGIDeviceManager> &mfDXGIDevMan,
                                const std::map<DWORD, DecodedMediaType> &decodedMTypes,
-                               double targeSizeFactor,
+                               double tgtQuality,
                                Encoder encoder,
                                bool useHwAcceleration)
     try
@@ -447,7 +445,7 @@ namespace application
         if (decodedMTypes.empty())
             return;
 
-        AddNewStreams(decodedMTypes, targeSizeFactor, encoder);
+        AddNewStreams(decodedMTypes, tgtQuality, encoder);
 
         // Start async encoding (will await for samples)
         hr = m_mfSinkWriter->BeginWriting();

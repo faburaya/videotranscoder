@@ -8,7 +8,7 @@ namespace application
 {
     struct CmdLineParams
     {
-        double tgtSizeFactor;
+        double tgtQuality;
         Encoder encoder;
         bool disableEncoderHwAcc;
         const char* gpuDevNameKey;
