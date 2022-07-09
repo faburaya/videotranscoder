@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CommandLineParsing.hpp"
+#include <3fd/utils/text.h>
 #include <iostream>
 #include <iomanip>
 
@@ -18,6 +19,7 @@ namespace application
 
         enum {
             ArgValEncoder,
+            ArgOptHwAcc,
             ArgValTgtSizeFactor, 
             ArgValGpuDev, 
             ArgValsListIO
@@ -31,6 +33,14 @@ namespace application
             "What encoder to use, always with the highest profile made available "
             "by Microsoft Media Foundation, for better compression"
         }, { "h264", "hevc" });
+
+        cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
+            ArgOptHwAcc,
+            CommandLineArguments::ArgType::OptionSwitch,
+            CommandLineArguments::ArgValType::None,
+            's', "nohwacc",
+            "Disable hardware acceleration of encoder in order to prevent distortion"
+            });
 
         cmdLineArgs.AddExpectedArgument(CommandLineArguments::ArgDeclaration{
             ArgValTgtSizeFactor,
@@ -56,7 +66,7 @@ namespace application
             "input & output files"
         }, { (uint16_t)2, (uint16_t)2 });
 
-        const char* usageMessage("\nUsage:\n\n VideoTranscoder [/e:encoder] [/t:target_size_factor] input output\n\n");
+        const char* usageMessage("\nUsage:\n\n VideoTranscoder [/e:encoder] [/s] [/t:target_size_factor] input output\n\n");
 
         if (cmdLineArgs.Parse(argc, argv) == STATUS_FAIL)
         {
@@ -67,9 +77,11 @@ namespace application
 
         bool isPresent;
         const char* encoderLabel = cmdLineArgs.GetArgValueString(ArgValEncoder, isPresent);
-        std::cout << '\n' << std::setw(22) << "encoder = " << encoderLabel
+        std::cout << '\n' << std::setw(25)
+            << "encoder = "
+            << _3fd::utils::to_upper(encoderLabel)
             << (isPresent ? " " : " (default)");
-
+        
         if (strcmp(encoderLabel, "h264") == 0)
             params.encoder = Encoder::H264_AVC;
         else if (strcmp(encoderLabel, "hevc") == 0)
@@ -78,11 +90,11 @@ namespace application
             _ASSERTE(false);
 
         params.tgtSizeFactor = cmdLineArgs.GetArgValueFloat(ArgValTgtSizeFactor, isPresent);
-        std::cout << '\n' << std::setw(22) << "target size factor = " << params.tgtSizeFactor
+        std::cout << '\n' << std::setw(25) << "target size factor = " << params.tgtSizeFactor
             << (isPresent ? " " : " (default)");
 
         params.gpuDevNameKey = cmdLineArgs.GetArgValueString(ArgValGpuDev, isPresent);
-        std::cout << '\n' << std::setw(22) << "accelerator GPU = ";
+        std::cout << '\n' << std::setw(25) << "accelerator GPU = ";
         if (isPresent)
         {
             std::cout << '"' << params.gpuDevNameKey << "\" (try to match name)";
@@ -92,6 +104,10 @@ namespace application
             params.gpuDevNameKey = "";
             std::cout << "(default)";
         }
+
+        params.disableEncoderHwAcc = cmdLineArgs.GetArgSwitchOptionValue(ArgOptHwAcc);
+        std::cout << '\n' << std::setw(25) << "encoder acceleration = "
+            << (params.disableEncoderHwAcc ? "disabled" : "try");
 
         std::vector<const char*> filesNames;
         cmdLineArgs.GetArgListOfValues(filesNames);
@@ -104,11 +120,11 @@ namespace application
         }
 
         params.inputFName = filesNames[0];
-        std::cout << '\n' << std::setw(22)
+        std::cout << '\n' << std::setw(25)
             << "input = " << params.inputFName;
 
         params.outputFName = filesNames[1];
-        std::cout << '\n' << std::setw(22)
+        std::cout << '\n' << std::setw(25)
             << "output = " << params.outputFName << '\n' << std::endl;
 
         return STATUS_OKAY;

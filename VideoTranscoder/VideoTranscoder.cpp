@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
                                              srcReadDecStreams,
                                              params.tgtSizeFactor,
                                              params.encoder,
-                                             true);
+                                             !params.disableEncoderHwAcc);
 
         const TimePoint startTime = system_clock::now();
         std::cout << "\nTranscoding starting at "

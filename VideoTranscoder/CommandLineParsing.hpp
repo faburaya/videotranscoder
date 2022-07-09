@@ -10,6 +10,7 @@ namespace application
     {
         double tgtSizeFactor;
         Encoder encoder;
+        bool disableEncoderHwAcc;
         const char* gpuDevNameKey;
         const char* inputFName;
         const char* outputFName;
