@@ -314,14 +314,28 @@ namespace application
                     "IMFSinkWriter::GetServiceForStream");
             }
 
-            auto qvs = EstimateGoodQualityForEncoder(decoded, targetSizeFactor);
+            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonRateControlMode,
+                                            &CComVariant((UINT32)eAVEncCommonRateControlMode_Quality))))
+            {
+                WWAPI::RaiseHResultException(hr,
+                    "Failed to set property 'CODECAPI_AVEncCommonRateControlMode' of encoder",
+                    "ICodecAPI::SetValue");
+            }
 
+            const UINT32 targetQuality(80);
+            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQuality, &CComVariant(targetQuality))))
+            {
+                WWAPI::RaiseHResultException(hr,
+                    "Failed to set property 'CODECAPI_AVEncCommonQuality' of encoder",
+                    "ICodecAPI::SetValue");
+            }
+
+            const UINT32 qvs = EstimateGoodQualityForEncoder(decoded, targetSizeFactor);
             std::cout << "\nEncoder 'quality vs. speed' set to " << qvs << '%' << std::endl;
-
             if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQualityVsSpeed, &CComVariant(qvs))))
             {
                 WWAPI::RaiseHResultException(hr,
-                    "Failed to set property 'CODECAPI_AVEncCommonQualityVsSpeed' encoder",
+                    "Failed to set property 'CODECAPI_AVEncCommonQualityVsSpeed' of encoder",
                     "ICodecAPI::SetValue");
             }
         }
