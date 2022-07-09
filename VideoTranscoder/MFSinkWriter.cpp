@@ -137,16 +137,18 @@ namespace application
                 "IMFMediaType::GetUINT32");
         }
 
-        // Find a lower data rate for the audio stream:
-
+        // Find a possibly lower data rate for the audio stream:
         UINT32 avgBytesPerSec(0UL);
         const std::array<UINT32, 4> enumBpsVals = { 12000, 16000, 20000, 24000 };
         auto iterEnumBps = std::lower_bound(enumBpsVals.begin(),
                                             enumBpsVals.end(),
                                             baseAudio.originalEncodedDataRate);
 
-        if (iterEnumBps != enumBpsVals.begin())
+        if (iterEnumBps != enumBpsVals.begin()
+            && (*iterEnumBps != baseAudio.originalEncodedDataRate || *iterEnumBps > 16000))
+        {
             --iterEnumBps;
+        }
 
         avgBytesPerSec = *iterEnumBps;
 
