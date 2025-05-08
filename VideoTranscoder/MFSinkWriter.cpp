@@ -21,7 +21,8 @@ namespace application
     using namespace _3fd::core;
 
     // Helps creating a video media type based in a model and parameters
-    static ComPtr<IMFMediaType> CreateOutVideoMediaType(const DecodedMediaType &baseVideo, Encoder encoder)
+    static ComPtr<IMFMediaType> CreateOutVideoMediaType(
+        const DecodedMediaType &baseVideo, Encoder encoder, double targetSizeFactor)
     {
         CALL_STACK_TRACE;
 
@@ -52,8 +53,8 @@ namespace application
                 "IMFMediaType::GetUINT32");
         }
 
-        //UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targetSizeFactor);
-        //std::cout << "\nTargeted video data rate is " << (videoAvgBitRate / (8 * 1024)) << " KB/s" << std::endl;
+        UINT32 videoAvgBitRate = static_cast<UINT32> (baseVideo.originalEncodedDataRate * targetSizeFactor);
+        std::cout << "\nTargeted video data rate is " << (videoAvgBitRate / (8 * 1024)) << " KB/s" << std::endl;
 
         // Create the video output media type:
         ComPtr<IMFMediaType> outputVideoMType;
@@ -64,7 +65,7 @@ namespace application
         // Now, in the new media type, set the base values plus some hardcoded ones:
         if (FAILED(hr = outputVideoMType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video)) ||
             FAILED(hr = outputVideoMType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive)) ||
-            //FAILED(hr = outputVideoMType->SetUINT32(MF_MT_AVG_BITRATE, videoAvgBitRate)) ||
+            FAILED(hr = outputVideoMType->SetUINT32(MF_MT_AVG_BITRATE, videoAvgBitRate)) ||
 
             FAILED(hr = MFSetAttributeSize(outputVideoMType.Get(),
                                            MF_MT_FRAME_SIZE,
@@ -96,7 +97,7 @@ namespace application
             profile = eAVEncH264VProfile_High;
             break;
         case Encoder::H265_HEVC:
-            videoFormat = MFVideoFormat_HEVC;
+            videoFormat = MFVideoFormat_H265;
             profile = eAVEncH265VProfile_Main_420_8;
             break;
         default:
@@ -106,7 +107,7 @@ namespace application
 
         // Set video format (encoder) and profile:
         if (FAILED(hr = outputVideoMType->SetGUID(MF_MT_SUBTYPE, videoFormat)) ||
-            FAILED(hr = outputVideoMType->SetUINT32(MF_MT_MPEG2_PROFILE, profile)))
+            FAILED(hr = outputVideoMType->SetUINT32(MF_MT_VIDEO_PROFILE, profile)))
         {
             WWAPI::RaiseHResultException(hr,
                 "Failed to set encoder/profile in media type for video output",
@@ -269,7 +270,7 @@ namespace application
         if (decoded.majorType == MFMediaType_Video) // video? will encode
         {
             mediaDataType = MediaDataType::Video;
-            outputMType = CreateOutVideoMediaType(decoded, encoder);
+            outputMType = CreateOutVideoMediaType(decoded, encoder, tgtQuality);
         }
         else if (decoded.majorType == MFMediaType_Audio) // audio? will encode
         {
@@ -312,21 +313,21 @@ namespace application
                     "IMFSinkWriter::GetServiceForStream");
             }
 
-            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonRateControlMode,
-                                            &CComVariant((UINT32)eAVEncCommonRateControlMode_Quality))))
-            {
-                WWAPI::RaiseHResultException(hr,
-                    "Failed to set property 'CODECAPI_AVEncCommonRateControlMode' of encoder",
-                    "ICodecAPI::SetValue");
-            }
+            //if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonRateControlMode,
+            //                                &CComVariant((UINT32)eAVEncCommonRateControlMode_Quality))))
+            //{
+            //    WWAPI::RaiseHResultException(hr,
+            //        "Failed to set property 'CODECAPI_AVEncCommonRateControlMode' of encoder",
+            //        "ICodecAPI::SetValue");
+            //}
 
-            const auto targetQuality = static_cast<UINT32>(round(100 * tgtQuality));
-            if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQuality, &CComVariant(targetQuality))))
-            {
-                WWAPI::RaiseHResultException(hr,
-                    "Failed to set property 'CODECAPI_AVEncCommonQuality' of encoder",
-                    "ICodecAPI::SetValue");
-            }
+            //const auto targetQuality = static_cast<UINT32>(round(100 * tgtQuality));
+            //if (FAILED(hr = codec->SetValue(&CODECAPI_AVEncCommonQuality, &CComVariant(targetQuality))))
+            //{
+            //    WWAPI::RaiseHResultException(hr,
+            //        "Failed to set property 'CODECAPI_AVEncCommonQuality' of encoder",
+            //        "ICodecAPI::SetValue");
+            //}
 
             const UINT32 qvs = EstimateBalanceQualityVsSpeed(decoded, tgtQuality);
             std::cout << "\nEncoder 'quality vs. speed' set to " << qvs << '%' << std::endl;

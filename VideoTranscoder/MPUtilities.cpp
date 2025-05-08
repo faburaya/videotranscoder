@@ -133,11 +133,13 @@ namespace application
             KeyValPair{ D3D_FEATURE_LEVEL_11_1, "Direct3D 11.1" },
             KeyValPair{ D3D_FEATURE_LEVEL_12_0, "Direct3D 12.0" },
             KeyValPair{ D3D_FEATURE_LEVEL_12_1, "Direct3D 12.1" },
+            KeyValPair{ D3D_FEATURE_LEVEL_12_2, "Direct3D 12.2" },
         };
 
         // Feature levels for Direct3D support
         const D3D_FEATURE_LEVEL d3dFeatureLevels[] =
         {
+            D3D_FEATURE_LEVEL_12_2,
             D3D_FEATURE_LEVEL_12_1,
             D3D_FEATURE_LEVEL_12_0,
             D3D_FEATURE_LEVEL_11_1,
