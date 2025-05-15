@@ -1,27 +1,30 @@
-// VideoTranscoder.cpp : Defines the entry point for the console application.
+﻿// VideoTranscoder.cpp : Defines the entry point for the console application.
 //
 
 #include "stdafx.h"
-#include "MediaFoundationWrappers.h"
+
 #include "CommandLineParsing.hpp"
-#include <3fd\core\runtime.h>
-#include <3fd\core\exceptions.h>
-#include <3fd\core\callstacktracer.h>
-#include <3fd\core\logger.h>
-#include <3fd\utils\cmdline.h>
+#include "MediaSession.hpp"
+#include "MediaSource.hpp"
+#include "MmfLibScope.hpp"
+#include "TranscodeProfile.hpp"
+#include "TranscodeTopology.hpp"
+
+#include <MinCppXtra/call_stack_access_scope.hpp>
+#include <MinCppXtra/seh_translation_scope.hpp>
+#include <MinCppXtra/traceable_exception.hpp>
+#include <MinCppXtra/win32_api_strings.hpp>
 
 #include <array>
-#include <codecvt>
+#include <chrono>
 #include <iostream>
-#include <mfapi.h>
+#include <stdexcept>
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
 
 namespace application
 {
-    using namespace _3fd::core;
-
-    const char* GetTimestamp(const time_t timeTicks)
+    static const char* GetTimestamp(const time_t timeTicks)
     {
         static std::array<char, 21> timestamp;
         strftime(timestamp.data(), timestamp.size(), "%Y-%b-%d %H:%M:%S", localtime(&timeTicks));
@@ -32,12 +35,12 @@ namespace application
     /// Prints a progress bar given the progress.
     /// </summary>
     /// <param name="progress">Progress of transcoding within range [0,1].</param>
-    void PrintProgressBar(double progress, const TimePoint startTime)
+    static void PrintProgressBar(double progress, const TimePoint startTime)
     {
         using std::chrono::minutes;
 
         // Amount of steps inside the progress bar
-        const int qtBarSteps(30);
+        const int qtBarSteps(40);
 
         static int donePercentage(0);
         static int doneSteps(0);
@@ -77,8 +80,10 @@ namespace application
         }
 
         const minutes totalTime = duration_cast<minutes>(system_clock::now() - startTime);
-        std::cout << "\rTranscoding finished at " << GetTimestamp(time(nullptr))
-                  << " (total elapsed time was " << totalTime.count() << " min)\n" << std::endl;
+        std::cout
+            << "\rTranscoding finished at " << GetTimestamp(time(nullptr))
+            << " (total elapsed time was " << totalTime.count() << " min)"
+            << std::endl << std::endl;
     }
 
 }// end of namespace application
@@ -87,130 +92,84 @@ namespace application
 // Entry Point
 /////////////////
 
-using namespace Microsoft::WRL;
-
 int main(int argc, char *argv[])
 {
     using namespace std::chrono;
-    using namespace _3fd::core;
-
-    FrameworkInstance frameworkInstance(FrameworkInstance::ComMultiThreaded);
-
-    CALL_STACK_TRACE;
+    using namespace Microsoft::WRL;
 
     try
     {
-        SetConsoleOutputCP(CP_UTF8);
+        mincpp::TraceableException::UseColorsOnStackTrace(true);
 
         application::CmdLineParams params;
-        if (application::ParseCommandLineArgs(argc, argv, params) == STATUS_FAIL)
+        if (!application::ParseCommandLineArgs(argc, argv, params))
             return EXIT_FAILURE;
 
-        application::MediaFoundationLib msmflib;
+        mincpp::CallStackAccessScope callStackAccessScope;
+        mincpp::SehTranslationScope sehTranslationScope;
+        application::MmfLibScope mmfLibScope;
 
-        // Create an instance of the Microsoft DirectX Graphics Infrastructure (DXGI) Device Manager:
-        ComPtr<IMFDXGIDeviceManager> mfDXGIDevMan;
-        UINT dxgiResetToken;
-        HRESULT hr = MFCreateDXGIDeviceManager(&dxgiResetToken, mfDXGIDevMan.GetAddressOf());
-        if (FAILED(hr))
-        {
-            WWAPI::RaiseHResultException(hr,
-                "Failed to create Microsoft DXGI Device Manager object",
-                "MFCreateDXGIDeviceManager");
-        }
+        application::MediaSource mediaSource(
+            mincpp::Win32ApiStrings::ToUtf16(params.inputFName)
+        );
 
-        // Get Direct3D device and associate with DXGI device manager:
-        auto d3dDevice = application::GetDeviceDirect3D(params.gpuDevNameKey);
-        mfDXGIDevMan->ResetDevice(d3dDevice.Get(), dxgiResetToken);
+        auto duration = mediaSource.GetDuration();
+        std::cout << std::endl
+            << "Input media file is "
+            << duration_cast<seconds>(duration).count()
+            << " seconds long" << std::endl;
 
-        // Load media source and select decoders
-        application::MFSourceReader sourceReader(params.inputFName, mfDXGIDevMan);
+        application::TranscodeProfile transcodeProfile(
+            mediaSource.GetMediaInfo(),
+            params.encoder,
+            params.tgtSize
+        );
 
-        // Start reading early to avoid waiting
-        sourceReader.ReadSampleAsync();
+        application::TranscodeTopology transcodeTopology(
+            mediaSource.GetMfObject(),
+            transcodeProfile.GetMfObject(),
+            params.outputFName
+        );
 
-        // Gather info about reader output decoded streams:
-        std::map<DWORD, application::DecodedMediaType> srcReadDecStreams;
-        sourceReader.GetOutputMediaTypesFrom(0UL, srcReadDecStreams);
-        
-        if (srcReadDecStreams.empty())
-        {
-            std::cout << "\nInput media file had no video or audio streams to decode!\n" << std::endl;
-            return EXIT_SUCCESS;
-        }
-
-        auto duration = sourceReader.GetDuration();
-        std::cout << "\nInput media file is " << duration_cast<seconds>(duration).count() << " seconds long\n";
-
-        // Prepare media sink and select encoders
-        application::MFSinkWriter sinkWriter(params.outputFName,
-                                             mfDXGIDevMan,
-                                             srcReadDecStreams,
-                                             params.tgtQuality,
-                                             params.encoder,
-                                             !params.disableEncoderHwAcc);
+        std::cout << std::endl
+            << (transcodeTopology.IsHardwareAccelerated()
+                ? "Transcoder is hardware accelerated 👍"
+                : "Transcoder is NOT hardware accelerated 👎")
+            << std::endl;
 
         const TimePoint startTime = system_clock::now();
-        std::cout << "\nTranscoding starting at "
-                  << application::GetTimestamp(system_clock::to_time_t(startTime))
-                  << '\n' << std::endl;
+        std::cout << std::endl
+            << "Transcoding starting at "
+            << application::GetTimestamp(system_clock::to_time_t(startTime))
+            << std::endl << std::endl;
+
+        ComPtr<application::MediaSession> mediaSession(new application::MediaSession());
+        mediaSession->StartEncodingSession(transcodeTopology.GetMfObject());
 
         application::PrintProgressBar(0.0, startTime);
 
-        try
+        // Loop for transcoding:
+        HRESULT asyncResult;
+        while ((asyncResult = mediaSession->Wait(milliseconds(500))) == E_PENDING)
         {
-            DWORD state;
-
-            // Loop for transcoding (decoded source reader output goes to sink writer input):
-            do
-            {
-                DWORD idxStream;
-                auto sample = sourceReader.GetSample(idxStream, state);
-                sourceReader.ReadSampleAsync();
-
-                if (!sample)
-                    continue;
-
-                LONGLONG timestampIn100ns;
-                sample->GetSampleTime(&timestampIn100ns);
-                double progress = timestampIn100ns / (duration.count() * 10.0);
-                application::PrintProgressBar(progress, startTime);
-
-                if ((state & static_cast<DWORD> (application::ReadStateFlags::GapFound)) != 0)
-                {
-                    sinkWriter.PlaceGap(idxStream, timestampIn100ns);
-                }
-                else if ((state & static_cast<DWORD> (application::ReadStateFlags::NewStreamAvailable)) != 0)
-                {
-                    auto prevLastIdxStream = srcReadDecStreams.rbegin()->first;
-                    sourceReader.GetOutputMediaTypesFrom(prevLastIdxStream + 1, srcReadDecStreams);
-                    sinkWriter.AddNewStreams(srcReadDecStreams, params.tgtQuality, params.encoder);
-                }
-
-                sinkWriter.EncodeSample(idxStream, sample);
-
-            } while ((state & static_cast<DWORD> (application::ReadStateFlags::EndOfStream)) == 0);
+            decltype(duration) position = mediaSession->GetEncodingPosition();
+            double progress = (double)position.count() / duration.count();
+            application::PrintProgressBar(progress, startTime);
         }
-        catch (HResultException &ex)
-        {
-            // In case of "GPU device removed" error, log some additional info:
-            if (ex.GetErrorCode() == DXGI_ERROR_DEVICE_REMOVED)
-            {
-                std::ostringstream oss;
-                oss << "There is a failure related to the GPU device: "
-                    << WWAPI::GetDetailsFromHResult(d3dDevice->GetDeviceRemovedReason());
 
-                Logger::Write(oss.str(), Logger::PRIO_FATAL);
-            }
-
-            throw;
-        }
+        if (FAILED(asyncResult))
+            return EXIT_FAILURE;
 
         application::PrintProgressBar(1.0, startTime);
     }
-    catch (IAppException &ex)
+    catch (mincpp::TraceableException &ex)
     {
-        Logger::Write(ex, Logger::PRIO_FATAL);
+        std::cerr << std::endl << ex.Serialize() << std::endl;
+        return EXIT_FAILURE;
+    }
+    catch (std::exception& ex)
+    {
+        std::cerr << std::endl << "ERROR: " << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
 

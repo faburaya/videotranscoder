@@ -1,23 +1,17 @@
-#ifndef COMMAND_LINE_PARSING_H
-#define COMMAND_LINE_PARSING_H // header guard
+#pragma once
 
-#include "MediaFoundationWrappers.h"
-#include <3fd/utils/cmdline.h>
+#include "Encoder.hpp"
+#include <string>
 
 namespace application
 {
     struct CmdLineParams
     {
-        double tgtQuality;
         Encoder encoder;
-        bool disableEncoderHwAcc;
-        const char* gpuDevNameKey;
-        const char* inputFName;
-        const char* outputFName;
+        double tgtSize;
+        std::string inputFName;
+        std::string outputFName;
     };
 
     bool ParseCommandLineArgs(int argc, char* argv[], CmdLineParams& params);
-
-}// end of namespace application
-
-#endif // end of header guard
+}

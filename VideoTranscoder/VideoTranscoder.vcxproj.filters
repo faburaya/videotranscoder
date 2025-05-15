@@ -13,18 +13,42 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\vs">
+      <UniqueIdentifier>{118254fa-07eb-456f-a8c5-8f8c85196893}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h">
+    <ClInclude Include="CommandLineParsing.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AppException.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaSource.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MmfLibScope.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TranscodeProfile.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MediaInfo.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="targetver.h">
+      <Filter>Header Files\vs</Filter>
+    </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>Header Files\vs</Filter>
+    </ClInclude>
+    <ClInclude Include="Encoder.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MediaFoundationWrappers.h">
+    <ClInclude Include="MediaSession.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CommandLineParsing.hpp">
+    <ClInclude Include="TranscodeTopology.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -35,16 +59,28 @@
     <ClCompile Include="VideoTranscoder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MFSourceReader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MPUtilities.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MFSinkWriter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="CommandLineParsing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AppException.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaSource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MmfLibScope.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TranscodeProfile.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MediaSession.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TranscodeTopology.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
