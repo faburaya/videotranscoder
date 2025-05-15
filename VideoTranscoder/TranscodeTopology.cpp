@@ -51,6 +51,7 @@ namespace application
 			if (type != MF_TOPOLOGY_TRANSFORM_NODE)
 				continue;
 
+			// this detection is currently giving false negatives
 			if (HasHardwareAcceleration(mfTopoNode))
 			{
 				m_hasHardwareAcceleration = true;

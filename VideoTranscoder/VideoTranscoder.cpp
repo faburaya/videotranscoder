@@ -72,7 +72,7 @@ namespace application
 
             int remaining = qtBarSteps - doneSteps;
             for (int idx = 0; idx < remaining; ++idx)
-                std::cout << ' ';
+                std::cout << '_';
 
             std::cout << "] " << donePercentage << " % done";
             std::cout << " / Remaining " << eta.count() << " min  " << std::flush;
@@ -82,7 +82,7 @@ namespace application
         const minutes totalTime = duration_cast<minutes>(system_clock::now() - startTime);
         std::cout
             << "\rTranscoding finished at " << GetTimestamp(time(nullptr))
-            << " (total elapsed time was " << totalTime.count() << " min)"
+            << " (total elapsed time was " << totalTime.count() << " minutes)"
             << std::endl << std::endl;
     }
 
@@ -131,11 +131,12 @@ int main(int argc, char *argv[])
             params.outputFName
         );
 
-        std::cout << std::endl
-            << (transcodeTopology.IsHardwareAccelerated()
-                ? "Transcoder is hardware accelerated 👍"
-                : "Transcoder is NOT hardware accelerated 👎")
-            << std::endl;
+        if (transcodeTopology.IsHardwareAccelerated())
+        {
+            std::cout << std::endl
+                << "Hardware accelerated transcoding detected 👍"
+                << std::endl;
+        }
 
         const TimePoint startTime = system_clock::now();
         std::cout << std::endl
