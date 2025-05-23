@@ -32,7 +32,7 @@ namespace application
         _ASSERTE(targetSizeFactor > 0.0 && targetSizeFactor <= 1.0);
         if (rpp > 0)
         {
-            auto complexity = static_cast<uint32_t> (67 + (1 - targetSizeFactor) * 133 * rpp);
+            auto complexity = static_cast<uint32_t> (67 + (1 - targetSizeFactor) * 100 * rpp);
             return std::min(100U, complexity);
         }
         else
@@ -114,6 +114,13 @@ namespace application
 
             CHECK("set video interlace mode",
                 attributes->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+            break;
+
+        case Encoder::AV1:
+            CHECK("set video encoder", attributes->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_AV1));
+
+            CHECK("set video encoder profile",
+                attributes->SetUINT32(MF_MT_VIDEO_PROFILE, eAVEncAV1VProfile_Main_420_8));
             break;
 
         default:

@@ -19,7 +19,7 @@ namespace application
         app.add_option("-e,--encoder", encoderName,
             "Video encoder to use (from Microsoft Media Foundation)")
             ->required()
-            ->check(CLI::IsMember({ "hevc", "h264" }));
+            ->check(CLI::IsMember({ "hevc", "h264", "av1"}));
 
         app.add_option("-t,--tsf", params.tgtSize, "Target size factor")
             ->required()
@@ -46,6 +46,8 @@ namespace application
             params.encoder = Encoder::H264_AVC;
         else if (encoderName == "hevc")
             params.encoder = Encoder::H265_HEVC;
+        else if (encoderName == "av1")
+            params.encoder = Encoder::AV1;
         else
             _ASSERTE(false);
 

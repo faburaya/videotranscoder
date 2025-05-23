@@ -4,6 +4,7 @@
 #include <chrono>
 #include <fcntl.h>
 #include <io.h>
+#include <iostream>
 #include <Shlwapi.h>
 #include <sstream>
 
@@ -126,16 +127,22 @@ namespace application
                         MF_MT_FRAME_RATE,
                         &info.videoProfile.frameRate.numerator,
                         &info.videoProfile.frameRate.denominator));
-
+                
                 // average bit rate not available?
                 if (FAILED(mediaType->GetUINT32(MF_MT_AVG_BITRATE, &info.videoProfile.avgBitrate)))
                 {
                     // estimate using file size:
                     info.videoProfile.avgBitrate =
                         static_cast<UINT32> (
-                            0.998 * m_fileSize * 8 /
+                            0.98 * m_fileSize * 8 /
                                 std::chrono::duration_cast<std::chrono::seconds>(GetDuration()).count()
                         );
+
+                    std::cout << std::endl
+                        << "Average bitrate not available in source: estimated as "
+                        << std::fixed << std::setprecision(1)
+                        << ((float)info.videoProfile.avgBitrate / (8 * 1024))
+                        << " KB/s" << std::endl;
                 }
             }
             else if (majorType == MFMediaType_Audio)
